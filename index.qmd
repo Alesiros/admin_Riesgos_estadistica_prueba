@@ -1,0 +1,253 @@
+---
+title: "Est�distica descriptiva"
+author: 
+  - name: "Chavez Huapeo Jacqueline"
+    custom-info: "2002159X@umich.mx"
+  - name: "Flores Ochoa Sofia Libertad" 
+    custom-info: "2209997A@umich.mx"
+  - name: "Mendoza Esteban Lizzet"
+    custom-info: "2111029D@umich.mx"
+  - name: "Lopez Carmona Audrey Carolina"
+    custom-info: "2209983D@umich.mx"
+  - name: "Rosas Moreno Alesi"
+    custom-info: "2209988C@umich.mx"
+format: html
+editor: visual
+---
+
+```{r setup, include=FALSE}
+library(plotly)
+library(tidyverse)
+library(lubridate)
+# Librería de Yahoo Finance para descargar datos:
+source("https://raw.githubusercontent.com/OscarVDelatorreTorres/yahooFinance/main/datosMultiplesYahooFinance.R")
+```
+
+En este documento vamos a ánalizar:
+
+1.  Acciones mexicanas
+
+2.  Acciones de EEUU
+
+3.  Índices
+
+4.  Futuros
+
+Para las acciones mexicanas tendremos a:
+
+-   ALFAA
+-   BIMBOA
+-   GFNORTEO
+-   GRUMAB
+-   LACOMERUBC
+-   VOLARA En acciones de EEUU:
+-   AAPL
+-   GOOGL
+-   META
+-   GRMN
+-   ARKF
+-   ARKX En el caso de los índices utilizaremos:
+-   IPC
+-   Dow Jones
+-   S%P500 Y por último, para futuros tomaremos a:
+-   Petróleo
+-   Maíz
+-   Azúcar
+-   Oro
+
+Descargaremos los datos por medio de Yahoo Finance, utilizandolos con moneda mexicana
+
+```{r, include=FALSE}
+tickerv=c("ALFAA.MX","BIMBOA.MX","GFNORTEO.MX","GRUMAB.MX","LACOMERUBC.MX","VOLARA.MX","AAPL","GOOGL","META","GRN","ARKF","ARKX","^MXX","^DJI","^GSPC","WTI","ZC=F","SB=F","GC=F")
+deD=Sys.Date()-1095
+hastaD=Sys.Date()
+per="D"
+paridadFX="USDMXN=X"
+convertirFX=c(FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE,FALSE,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE)
+Datos=historico_multiples_precios(tickers=tickerv,de=deD,hasta=hastaD,periodicidad=per,fxRate=paridadFX,whichToFX=convertirFX)
+```
+
+# Tabla Resumen Rendimientos continuos:
+
+```{r, include=TRUE}
+# Vector de medias:
+mediaAccionesRC=colMeans(Datos$tablaRendimientosCont[,-1])
+# Vector de desviaciones estándar:
+desvAccionesRC=apply(Datos$tablaRendimientosCont[,-1],2,sd)
+cuantiles_5RC=apply(Datos$tablaRendimientosCont[,-1], 2, quantile, probs = 0.05, na.rm = TRUE)
+cuantiles_95RC=apply(Datos$tablaRendimientosCont[,-1], 2, quantile, probs = 0.95, na.rm = TRUE)
+contRC=count(Datos$tablaRendimientosCont)
+# Tabla de resumen:
+tablaResumenRC=data.frame(Accion=names(Datos$tablaRendimientosCont)[-1],                        
+                        Media=mediaAccionesRC,
+                        DesviacionEstandar=desvAccionesRC,
+                        min=apply(Datos$tablaRendimientosCont[,-1],2,min),
+                        max=apply(Datos$tablaRendimientosCont[,-1],2,max),
+                        cuantil5=cuantiles_5RC,
+                        cuantil95=cuantiles_95RC,
+                        Conteo=contRC
+                        )
+tablaResumenRC
+```
+
+# Tabla Resumen PL�
+
+```{r, include=TRUE}
+
+# Vector de medias:
+mediaAccionesPL=colMeans(Datos$tablaPL[,-1])
+# Vector de desviaciones estándar:
+desvAccionesPL=apply(Datos$tablaPL[,-1],2,sd)
+cuantiles_5PL <- apply(Datos$tablaPL[,-1], 2, quantile, probs = 0.05, na.rm = TRUE)
+cuantiles_95PL <- apply(Datos$tablaPL[,-1], 2, quantile, probs = 0.95, na.rm = TRUE)
+contPL=count(Datos$tablaPL)
+# Tabla de resumen:
+tablaResumenPL=data.frame(Accion=names(Datos$tablaPL)[-1],                        
+                        Media=mediaAccionesPL,
+                        DesviacionEstandar=desvAccionesPL,
+                        min=apply(Datos$tablaPL[,-1],2,min),
+                        max=apply(Datos$tablaPL[,-1],2,max),
+                        cuantil5=cuantiles_5PL,
+                        cuantil95=cuantiles_95PL,
+                        Conteo=contPL
+                        )
+tablaResumenPL
+```
+
+# Graficas
+
+```{r,include=TRUE}
+# Objeto de base de datos de precios base 100 (índice):
+base100Calc=function(x){
+  return((x/x[1])*100)
+}
+# Tomo todos los históricos con excepción de la columna fecha para el cálculo:
+preciosB100=Datos$tablaPrecios[,-1]
+# Aplico la función Base 100 a cada columna:
+preciosB100=apply(preciosB100,2,base100Calc)
+# Agrego la columna de fechas creando un data.frame con la pura fecha y así respete el formato de fecha y la concateno con los precios base 100:
+preciosB100=cbind(data.frame(Fate=Datos$tablaPrecios$Date),
+                  preciosB100)
+# Convierto a base de datos "largo":
+DatosGraficaPreciosB100=preciosB100 %>%
+  pivot_longer(cols=-Fate,names_to="Ticker",values_to="PrecioBase100")
+
+# Hacemos la base de datos de los rendimientos:
+DatosGraficaRendimientos=Datos$tablaRendimientosCont %>%
+  pivot_longer(cols=-Date,names_to="Ticker",values_to="RendimientoCont")
+DatosGraficaRendimientos
+
+DatosGraficaRendimientosPL=Datos$tablaPL %>%
+  pivot_longer(cols=-Date,names_to="Ticker",values_to="PL")
+DatosGraficaRendimientosPL
+```
+
+## Gr�fica Rendimiento continuo
+
+```{r, include=TRUE}
+fig1a=plot_ly()%>%
+  add_trace(data=DatosGraficaPreciosB100,
+            x=~Fate,
+            y=~PrecioBase100,
+            color=~Ticker,
+            type="scatter",
+            mode="lines")
+fig1b=plot_ly()%>%
+  add_trace(data=DatosGraficaRendimientos,
+            x=~Date,
+            y=~RendimientoCont,
+            color=~Ticker,
+            type="scatter",
+            mode="lines")
+fig1c=plot_ly()%>%
+  add_trace(data=DatosGraficaRendimientosPL,
+            x=~Date,
+            y=~PL,
+            color=~Ticker,
+            type="scatter",
+            mode="lines")
+
+fig1=subplot(fig1a,fig1b,fig1c,
+             nrows=3,
+             shareX=TRUE, 
+             titleY=TRUE) %>%
+  layout(title="Comparativo de acciones",
+         yaxis1=list(title="Precio Base 100"),
+         yaxis2=list(title="Rendimiento Contínuo (%)"),
+         yaxis3=list(title="P/L"))
+fig1
+```
+
+# Covarianza 
+
+## Covarianza Rendimiento continuo
+
+```{r, include=TRUE}
+covarianzasRC=cov(Datos$tablaRendimientosCont[,-1])
+covarianzasRC
+```
+
+```{r, include=TRUE}
+figm_1_1=plot_ly(x=colnames(covarianzasRC),
+             y=rownames(covarianzasRC),
+             z=as.matrix(covarianzasRC),
+             type="heatmap") %>%
+  layout(title="Matriz de covarianzas de rendimiento continuo",
+         xaxis=list(title=""),
+         yaxis=list(title=""))
+figm_1_1
+```
+
+## Covarianza P/L
+
+```{r, include=TRUE}
+covarianzasPL=cov(Datos$tablaPL[,-1])
+covarianzasPL
+```
+
+```{r, include=TRUE}
+figm_1_2=plot_ly(x=colnames(covarianzasPL),
+             y=rownames(covarianzasPL),
+             z=as.matrix(covarianzasPL),
+             type="heatmap") %>%
+  layout(title="Matriz de covarianzas de P/L",
+         xaxis=list(title=""),
+         yaxis=list(title=""))
+figm_1_2
+```
+
+# Correlaci�n 
+
+## Correlaci�n Rendimientos continuos
+
+```{r, include=TRUE}
+correlacionesRC=cor(Datos$tablaRendimientosCont[,-1])
+correlacionesRC
+```
+
+```{r, include=TRUE}
+figm_2_1=plot_ly(x=colnames(correlacionesRC),
+             y=rownames(correlacionesRC),
+             z=as.matrix(correlacionesRC),
+             type="heatmap") %>%
+  layout(title="Matriz de correlaciones de rendimiento continuo",
+         xaxis=list(title=""),
+         yaxis=list(title=""))
+figm_2_1
+```
+
+```{r, include=TRUE}
+correlacionesPL=cor(Datos$tablaPL[,-1])
+correlacionesPL
+```
+
+```{r, include=TRUE}
+figm_2_2=plot_ly(x=colnames(correlacionesPL),
+             y=rownames(correlacionesPL),
+             z=as.matrix(correlacionesPL),
+             type="heatmap") %>%
+  layout(title="Matriz de correlaciones de P/L",
+         xaxis=list(title=""),
+         yaxis=list(title=""))
+figm_2_2
+```
